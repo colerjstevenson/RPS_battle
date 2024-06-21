@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<style>
+canvas {
+    border:1px solid #000000;
+    background-color: #131a24;
+}
+</style>
+</head>
+<body onload="startGame()" style="background-color: #032231;">
+<script>
+
+var myGamePiece;
+var units;
+var infoBar;
+
+
+const R = 1;
+const P = 2;
+const S = 3;
+
+const START = 1;
+const RUNNING = 2;
+const END = 3;
+
+
+const speed = 5;
+
+var state;
+
+
+
+var rockImg = new Image();
+var paperImg = new Image();
+var scissorsImg = new Image();
+var logo = new Image();
+var gameOver = new Image();
+
+document.addEventListener("click", onMouseClick, false);
+
+function startGame() {
+    rockImg.src = "rock.png";
+    paperImg.src = "paper.png";
+    scissorsImg.src = "scissors.png";
+    logo.src = "logo.webp";
+    gameOver.src = "gameOver.png";
+
+    state = START;
+
+    units = [];
+
+    myGameArea.start();
+    
+    for(var i = 1; i <= 3; i++){
+        for(var n = 0; n < myGameArea.numUnits; n++){
+            var tempX = getRan(0, myGameArea.width - myGameArea.unitSize);
+            var tempY = getRan(0, myGameArea.height - myGameArea.unitSize);
+            units.push(new unit(tempX, tempY, i));
+        }
+
+    }
+    
+    infoBar = new panel();
+    
+}
+
+function resetGame(){
+    units = [];
+
+    myGameArea.reset();
+    
+    for(var i = 1; i <= 3; i++){
+        for(var n = 0; n < myGameArea.numUnits; n++){
+            var tempX = getRan(0, myGameArea.width - myGameArea.unitSize);
+            var tempY = getRan(0, myGameArea.height - myGameArea.unitSize);
+            units.push(new unit(tempX, tempY, i));
+        }
+
+    }
+    
+    infoBar = new panel();
+}
+
+
+
+var myGameArea = {
+    canvas : document.createElement("canvas"),
+    start : function() {
+        this.minUnits = 10;
+        this.maxUnits = 20;
+        this.minSize = 45;
+        this.maxSize = 60;
+
+        this.width = 720;
+        this.height = 720;
+        this.panelSize = 100;
+
+        this.canvas.width = this.width+this.panelSize;
+        this.canvas.height = this.height;
+        this.context = this.canvas.getContext("2d");
+        document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+        this.frameNo = 0;
+        this.interval = setInterval(updateGameArea, 40);
+
+    },
+    clear : function() {
+        this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+    },
+    reset : function(){
+        this.unitSize = getRan(this.minSize, this.maxSize);
+        this.numUnits = getRan(this.minUnits, this.maxUnits);
+        this.frameNo = 0;
+
+        console.log("Starting Units: " + this.numUnits);
+        console.log("Unit Size: " + this.unitSize);
+    }
+}
+
+
+
+
+function panel(){
+    var gapRatio = 10;
+    var gap = myGameArea.panelSize/gapRatio;
+
+    this.w = myGameArea.panelSize - (2*gap)
+    this.h = this.w;
+    this.x = myGameArea.width + gap
+    this.y = myGameArea.height - gap - this.h;
+
+    this.next = null
+
+    this.bg = new component(myGameArea.panelSize, myGameArea.height, "black", myGameArea.width, 0)
+    this.score = new component("30px", "Consolas", "white", myGameArea.width+myGameArea.panelSize*0.4, 6*gap, "score");
+
+    this.update = function(){
+        this.bg.update();
+        this.score.update();
+
+        ctx = myGameArea.context;
+        ctx.fillStyle = "white";
+        ctx.fillRect(this.x, this.y, this.w, this.h);
+        
+        
+        if(state == RUNNING){
+            if (this.next == R) {
+                ctx.drawImage(rockImg, this.x, this.y, this.h, this.w);
+            } else if (this.next == P){
+                ctx.drawImage(paperImg, this.x, this.y, this.h, this.w);
+            } else if (this.next == S){
+                ctx.drawImage(scissorsImg, this.x, this.y, this.h, this.w);
+            }
+
+            this.score.text = Math.round(myGameArea.frameNo/40);
+        }
+        
+
+        if((this.next == null && everyinterval(100)) || myGameArea.frameNo == 0){
+            this.next = Math.round(Math.random() * 3 + 0.5);
+        }
+        
+
+
+    }
+}
+
+
+function component(width, height, color, x, y, text="") {
+    this.text = text;
+    this.width = width;
+    this.height = height;
+    this.speedX = 0;
+    this.speedY = 0;    
+    this.x = x;
+    this.y = y;
+
+    this.update = function() {
+        ctx = myGameArea.context;
+        if (this.text != "") {
+            ctx.font = this.width + " " + this.height;
+            ctx.fillStyle = color;
+            ctx.fillText(this.text, this.x, this.y);
+        } else {
+            ctx.fillStyle = color;
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+        }
+    }
+
+}
+
+
+function unit(x, y, type) {
+    this.type = type;
+    this.score = 0;
+    this.width = myGameArea.unitSize;
+    this.height = myGameArea.unitSize;
+    this.speedX = getRan(-speed, speed);
+    this.speedY = getRan(-speed, speed);    
+    this.x = x;
+    this.y = y;
+    this.seeking = true
+    
+    
+    this.update = function() {
+        ctx = myGameArea.context;
+
+        
+
+        //this.updateSpeed();
+        //this.updateVison();
+        //this.normalize();
+        this.newPos();
+        for(var i = 0; i < units.length; i++){
+            this.crashWith(units[i])
+        }
+
+        if (this.type == R) {
+            ctx.drawImage(rockImg, this.x, this.y, this.height, this.width);
+        } else if (this.type == P){
+            ctx.drawImage(paperImg, this.x, this.y, this.height, this.width);
+        } else if (this.type == S){
+            ctx.drawImage(scissorsImg, this.x, this.y, this.height, this.width);
+        }
+
+        // ctx.font = this.width + " " + this.height;
+        
+        
+    }
+
+    this.newPos = function() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        this.hitSide();
+    }
+
+    this.hitSide = function() {
+        // right wall
+        if(this.x > myGameArea.width - this.width){
+            this.x = myGameArea.width - this.width;
+            this.speedX = this.speedX * -1;
+        }
+
+        // left wall
+        if(this.x < 0){
+            this.x = 0;
+            this.speedX = this.speedX * -1;
+        }
+
+        // top
+        if(this.y > myGameArea.height - this.height){
+            this.y = myGameArea.height - this.height;
+            this.speedY = this.speedY * -1;
+        }
+
+        // top
+        if(this.y < 0){
+            this.y = 0;
+            this.speedY = this.speedY * -1;
+        }
+  
+    }
+
+    this.crashWith = function(otherobj) {
+        var myleft = this.x;
+        var myright = this.x + (this.width);
+        var mytop = this.y;
+        var mybottom = this.y + (this.height);
+        var otherleft = otherobj.x;
+        var otherright = otherobj.x + (otherobj.width);
+        var othertop = otherobj.y;
+        var otherbottom = otherobj.y + (otherobj.height);
+        
+        if ((mybottom < othertop) || (mytop > otherbottom) || (myright < otherleft) || (myleft > otherright)) {
+            return false;
+        }
+
+        // kill enemy
+        if(this.type == R && otherobj.type == P){
+            this.type = P;
+            otherobj.speedX *= -1;
+            otherobj.speedY *= -1;
+        }
+
+        if(this.type == P && otherobj.type == S){
+            this.type = S;
+            otherobj.speedX *= -1;
+            otherobj.speedY *= -1;
+        }
+
+        if(this.type == S && otherobj.type == R){
+            this.type = R;
+            otherobj.speedX *= -1;
+            otherobj.speedY *= -1;
+        }
+
+        //bounce back
+
+        
+        return true;
+    }
+
+    this.checkCrash = function(){
+        for(var i = 0; i < units.length; i++){
+            this.crashWith(units[i])
+        }
+    }
+
+
+    this.updateVison = function(){
+        var count = 0;
+        for(var i = 0; i < units.length; i ++){
+            if(units[i].type == this.type){
+                count++; 
+            }
+        }
+        
+        this.vison = ((units.length - count)/units.length)*100;
+        
+    }
+
+    this.normalize = function(){
+        var mag = Math.sqrt(this.speedX*this.speedX + this.speedY*this.speedY)
+
+        this.speedX /= mag;
+        this.speedY /= mag;
+    }
+
+
+    this.closestUnit = function(){
+        var min = myGameArea.width
+        var i = 0;
+        for(var i = 0; i < units.length; i++){
+            if(this.type != units[i].type){
+                
+                var dis = this.dist(units[i]);
+
+                if(dis < min){
+                    min = dis;
+                    min_i = i;
+                }
+
+            }
+        }
+
+        return units[min_i];
+    }
+
+
+    this.updateSpeed = function(){
+        var enemy = this.closestUnit();
+        if(this.dist(enemy) < this.vison){
+            if(this.type == R && enemy.type == S){
+                this.speedX = this.map(enemy.x - this.x);
+                this.speedY = this.map(enemy.y - this.y);
+                this.seeking = true;
+                return;
+            } else if(this.type == P && enemy.type == R){
+                this.speedX = this.map(enemy.x - this.x);
+                this.speedY = this.map(enemy.y - this.y);
+                this.seeking = true;
+                return;
+            } else if(this.type == S && enemy.type == P){
+                this.speedX = this.map(enemy.x - this.x);
+                this.speedY = this.map(enemy.y - this.y);
+                this.seeking = true;
+                return;
+            } //else if (this.type != enemy.type){
+            //     this.speedX = -this.map(enemy.x - this.x);
+            //     this.speedY = -this.map(enemy.y - this.y);
+            //     this.seeking = true;
+            //     return;
+            // }
+
+            
+
+        }else if (this.seeking){
+            this.speedX = -this.map(enemy.x - this.x);
+            this.speedY = -this.map(enemy.y - this.y);
+            this.seeking = false;
+            return;
+        }
+            
+    }
+
+
+    this.map = function(n){
+        var input_start = -myGameArea.width;
+        var input_end = myGameArea.width;
+        
+        var adjust = Math.round(myGameArea.frameNo/500);
+        var output_start = -speed - adjust;
+        var output_end = speed + adjust;
+
+        var output = output_start + ((output_end - output_start) / (input_end - input_start)) * (n - input_start);
+
+        return output;
+    }
+
+    this.checkKill = function(obj){
+        if(this.type == R && obj.type == S){
+            return true;
+        }
+
+        if(this.type == P && obj.type == R){
+            return true;
+        }
+
+        if(this.type == S && obj.type == P){
+            return true;
+        }
+
+        return false;
+    }
+
+    this.dist = function(obj){
+        var distX = this.x + this.width - obj.x
+        var distY = this.y + this.width - obj.y
+        var dis = Math.sqrt(distX*distX + distY*distY);
+
+        return dis
+    }
+}
+
+
+function updateGameArea() {
+    if(state == START){
+        myGameArea.context.drawImage(logo, 0, 0, myGameArea.canvas.width, myGameArea.canvas.height);
+    }else if (state == RUNNING){
+        myGameArea.clear();
+        myGameArea.frameNo += 1;
+        infoBar.update();
+
+        for (i = 0; i < units.length; i += 1) {
+            units[i].update();
+        }
+
+        if(checkDone()){
+            console.log("Time Lasted: " + infoBar.score.text);
+            state = END;
+        }
+    }else if (state == END){
+        myGameArea.clear();
+        for (i = 0; i < units.length; i += 1) {
+            units[i].update();
+        }
+        infoBar.update();
+
+        var margin = myGameArea.width/3;
+        myGameArea.context.drawImage(gameOver, margin/2, margin/2, margin*2, margin*2);
+        myGameArea.context.fillText(infoBar.score.text, myGameArea.width*0.53, myGameArea.height*0.764);
+    }
+}
+
+
+function everyinterval(n) {
+    if ((myGameArea.frameNo / n) % 1 == 0) {return true;}
+    return false;
+}
+
+
+
+function getRan(min, max) {
+  const minCeiled = min;
+  const maxFloored = max;
+  var r = Math.floor(Math.random() * (maxFloored - minCeiled + 1) + minCeiled);
+  
+  while(Math.abs(r) < 0.5){
+    r = Math.floor(Math.random() * (maxFloored - minCeiled + 1) + minCeiled);
+  }
+  return r
+}
+
+
+function onMouseClick(e){
+    
+    if(state == RUNNING){
+        if(e.clientX > 0 && e.clientX < myGameArea.width && e.clientY > 0 && e.clientY < myGameArea.height && infoBar.next != null){
+            units.push(new unit(e.clientX - myGameArea.unitSize, e.clientY - myGameArea.unitSize, infoBar.next));
+            infoBar.next = null;
+        }
+    }else{
+        state = RUNNING;
+        resetGame();
+    }
+    
+    
+}
+
+
+function checkDone(){
+    var t = units[0].type;
+    for (i = 0; i < units.length; i += 1) {
+        if(units[i].type != t){
+            return false;
+        }
+    }
+
+    return true;
+}
+</script>
+<br>
+<p style="color: whitesmoke;">Welcome to RPS Battle!</p>
+
+<p style="color: whitesmoke;">When the games starts there will be three armies -- Rock, Paper, and Scissors</p>
+<p style="color: whitesmoke;">just like in a classic RPS game, rock beats scissors, paper beats rock, and scissors beats paper </p>
+<p style="color: whitesmoke;">when there is only one army left the game ends, the goal is to keep the battle going as long as possible</p>
+
+<p style="color: whitesmoke;">In order to do this, every so ofter you will be given a new unit to place into the battle feild</p>
+<p style="color: whitesmoke;">When a unit is ready it will appear in the bottom right corner</p>
+<p style="color: whitesmoke;">Click any where on the battle feild to add the new unit</p>
+<br>
+<p style="color: whitesmoke;">How long can you stay alive?</p>
+</body>
+</html>
